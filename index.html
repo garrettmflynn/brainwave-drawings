@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.1.9/p5.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.1.9/addons/p5.sound.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/brainsatplay@0.0.1"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bcijs@1.8.0/dist/bci.min.js"></script>
+
+    <style>
+      html, body {
+  width: 100%;
+  height: 100%;
+  font-family: Lato, sans-serif;
+  color : white;
+  background: black;
+  margin: 0;
+}
+
+canvas {
+  background-color: black;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.disabled {
+    pointer-events: none;
+    opacity: 0.5;
+}
+
+    h2{
+        font-size: 40px;
+        font-weight: normal;
+        margin: 0px 0px 5px 0px;
+    }
+
+    i {
+        font-size: 80%;
+    }
+
+    h5{
+        margin:0px
+    }
+
+    button {
+        width: 200px;
+        min-height: 50px;
+        cursor: pointer;
+        color: whitesmoke;
+        font-family: inherit;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background: transparent;
+        margin: 0px 20px 20px 0px;
+        border: 1px solid whitesmoke;
+        padding: 10px 20px;
+        border-radius: 5px;
+        transition: 0.5s;
+    }
+
+    button:hover{
+        color: #FF76E9;
+        border-color: #FF76E9;
+    }
+
+    #ui {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        width: 100vw;
+        height: 100vh;
+    }
+
+        #info-card {
+            display: block;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: calc(100vw - 150px);
+            max-width: 33.3vw;
+            padding: 25px;
+            background: transparent;
+
+            transition: 0.5s ease-in-out;
+            -o-transition: 0.5s ease-in-out;
+            -ms-transition: 0.5s ease-in-out;
+            -moz-transition: 0.5s ease-in-out;
+            -webkit-transition: 0.5s ease-in-out;
+        }
+
+        #info-card .small {
+            font-size: 10px;
+        }
+
+        #info-card p {
+            font-size: 80%
+        }
+
+        #info-card ol {
+            font-size: 80%
+        }
+
+        #info-card ol p {
+            font-size: 100%
+        }
+
+        #info-card h4 {
+            margin: 0px;
+        }
+
+        #info-card a {
+            color: #6a8eb0;
+            text-decoration: none;
+        }
+
+        #info-card a:visited {
+            color: gray;
+        }
+    </style>
+    <meta charset="utf-8" />
+
+  </head>
+  <body>
+    <script>
+
+        // Class to Handle Moving Trace
+    class Trace {
+  constructor(center,size) {
+    this.center = center;
+    this.history = Array.from({length: 15}, e => e = this.center)
+    this.size = size
+  }
+  
+  update(x,y){
+    this.history.shift()
+    this.history.push([x,y])
+  }
+}
+
+
+
+
+let connectToggle;
+  let disconnectToggle;
+  let museToggle;
+
+  let margin = 100;
+  let c; 
+  let trace;
+
+  setup = () => {
+
+      // P5 Setup
+      createCanvas(windowWidth, windowHeight);
+      textAlign(CENTER, CENTER);
+      
+      // Drawing Setup
+      c = color(255,255,255);
+      trace = new Trace(
+      [windowWidth/2,windowHeight/2],
+      10)
+      capture = createCapture(VIDEO);
+      capture.size(windowWidth, windowWidth);
+    
+    
+    // Interaction Setup
+      connectToggle = createButton('Connect to Server');
+      connectToggle.addClass('disabled')
+      museToggle = createButton('Connect Muse');
+      disconnectToggle = createButton('Disconnect');
+      connectToggle.position(windowWidth-25-connectToggle.width, windowHeight-125-connectToggle.height);
+      disconnectToggle.position(windowWidth-25-disconnectToggle.width, windowHeight-125-disconnectToggle.height);
+      museToggle.position(windowWidth-25-museToggle.width, windowHeight-50-museToggle.height);
+      disconnectToggle.hide()
+    
+    
+      // Brains@Play Setup
+      game = new brainsatplay.Game('brainwavedrawings')
+      game.simulate(2);
+      
+      museToggle.mousePressed(async () => {
+          await game.bluetooth.devices['muse'].connect()
+          game.connectBluetoothDevice(brainsatplay.museClient)
+      });
+
+      connectToggle.mousePressed(() => {
+          game.connect({'guestaccess': true})
+          disconnectToggle.show()
+          connectToggle.hide()
+      });
+    
+      disconnectToggle.mousePressed(() => {
+          game.disconnect()
+          disconnectToggle.hide()
+          connectToggle.show()
+      })
+    }
+    
+    draw = () => {
+
+      if (game.bluetooth.connected){
+          museToggle.hide()
+      } else {
+          museToggle.show()
+      }
+
+      background(0);
+    
+      // Update Voltage Buffers and Derived Variables
+      game.update();
+
+      // Draw Raw Voltage 
+      let usernames = game.getUsernames()
+      usernames.splice(game.me.index,1)
+      let yourName = usernames[0]
+      let viewedChannels = game.usedChannels
+      let you = game.brains[game.info.access].get(yourName)
+      let youV = you.getVoltage()[you.usedChannels[0].index]
+      let me = game.brains[game.info.access].get(game.me.username)
+      let meV = me.getVoltage()[me.usedChannels[0].index]
+      
+      trace.update(
+        trace.center[0] + meV[meV.length-1]/2,
+        trace.center[1] + youV[youV.length-1]/2
+      )
+      
+      // Image
+      image(capture, 0, 0, windowWidth, windowHeight);
+      filter(GRAY);
+      tint(255, 127);
+      
+      // Drawing
+      for (let ind = 0; ind < trace.history.length-3; ind++){
+        noFill()
+        stroke(`rgba(${100}%,
+                    ${100}%,
+                     ${100}%,
+${(ind/(trace.history.length-3))})`)
+        strokeWeight(5)
+        beginShape();
+        curveVertex(trace.history[ind][0],trace.history[ind][1]);
+        curveVertex(trace.history[ind+1][0],trace.history[ind+1][1]);
+        curveVertex(trace.history[ind+2][0],trace.history[ind+2][1]);
+        curveVertex(trace.history[ind+3][0],trace.history[ind+3][1]);
+        endShape();
+} 
+      
+      // Text
+      noStroke()
+      fill('white')
+      textStyle(BOLD)
+      textSize(15)
+      text('BrainWave Drawings Online', windowWidth / 2, windowHeight-100)
+      textStyle(ITALIC)
+      textSize(10)
+    
+      if (!game.info.simulated) {
+          text('Live Data Stream', windowWidth / 2, windowHeight-80)
+      } else {
+          text('Synthetic Data Stream', windowWidth / 2, windowHeight-80)
+      }
+      
+      textStyle(NORMAL)
+      if ((game.info.brains === 0 || game.info.brains === undefined) && game.connection.status) {
+          text('No brains on the network...', windowWidth / 2, windowHeight/2)
+      } else if (game.info.brains < 2 && game.connection.status) {
+          text('One brain on the network...', windowWidth / 2, windowHeight/2)
+      }
+    }
+
+    
+    windowResized = () => {
+      resizeCanvas(windowWidth, windowHeight);
+      capture.size(windowWidth, windowWidth);
+      connectToggle.position(windowWidth-25-connectToggle.width, windowHeight-125-connectToggle.height);
+      disconnectToggle.position(windowWidth-25-disconnectToggle.width, windowHeight-125-disconnectToggle.height);
+      museToggle.position(windowWidth-25-museToggle.width, windowHeight-50-museToggle.height);
+  }
+
+    </script>
+  </body>
+</html>
